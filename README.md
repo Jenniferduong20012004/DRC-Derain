@@ -17,18 +17,36 @@ adaptive weak-mask supervision that adjusts its influence according to degradati
 quality rather than treating it as fixed pseudo-ground truth. Experiments on synthetic and real-world
 benchmarks demonstrate that DRC-Derain achieves competitive deraining performance while better
 preserving unaffected image content and improving robustness under unpaired training.
-## 🎥 Demo Video
-Watch the demo on [YouTube](https://www.youtube.com/watch?v=uJauqdxdj7A).
+## Example Results
 
-## 💻 Code
-The code will be released soon.
 
-## 🖼️ Example Results
+
 Qualitative results:
 
+
+
 <p align="center">
-  <img src="figures/Derain___Nhu_ft_Trinh_page-0014.jpg" height="100px">
-</p>
+
+<img src="figures/Derain___Nhu_ft_Trinh_page-0014.jpg" :height="100px">
+
 <p align="center">
-  <img src="figures/Derain___Nhu_ft_Trinh_page-0015.jpg" height="100px">
-</p>
+
+<img src="figures/Derain___Nhu_ft_Trinh_page-0015.jpg" :height="100px">
+
+
+
+  
+
+## Code
+
+
+
+The code will be released soon.
+
+
+
+## 🎥 Demo Video
+
+
+
+Watch the demo on [YouTube](https://www.youtube.com/watch?v=uJauqdxdj7A).
