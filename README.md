@@ -20,6 +20,15 @@ preserving unaffected image content and improving robustness under unpaired trai
 
 ## Model Architecture
 <img src="figures/framework.jpg" :height="100px">
+
+### Installation
+
+python==3.10
+pip install -r requirements.txt
+
+## Training dataset
+Our training dataset can be found and downloaded in train_data.txt
+
 ## Example Results
 
 
