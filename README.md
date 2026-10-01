@@ -1,5 +1,6 @@
 # DRC-Derain: Detect-Restore-Compose Framework for Unpaired Single-Image Deraining
 DRC-Derain: Detect-Restore-Compose Framework for Unpaired Single-Image Deraining
+
 Unpaired single-image deraining avoids the need for aligned rainy-clean pairs, but existing translation-
 based formulations remain highly underconstrained because the generator is typically allowed to
 reconstruct the entire image. This is unnecessary for rain removal, where degradation usually
