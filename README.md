@@ -41,11 +41,11 @@ Qualitative results:
 
 <p align="center">
 
-<img src="figures/Derain___Nhu_ft_Trinh_page-0014.jpg" :height="100px">
+<img src="figures/Derain___VCIR_Journal_page-0008.jpg" :height="100px">
 
 <p align="center">
 
-<img src="figures/Derain___Nhu_ft_Trinh_page-0015.jpg" :height="100px">
+<img src="figures/Derain___VCIR_Journal_page-0009.jpg" :height="100px">
 
 
 
