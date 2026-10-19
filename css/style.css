@@ -1,0 +1,964 @@
+html {
+  /* Nav-link clicks (.tabs-nav -> #section) and any other same-page #anchor
+     jump animate instead of snapping. Turned off below for users who've
+     asked their OS for reduced motion. */
+  scroll-behavior: smooth;
+}
+
+:root {
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --text: #1a1a1a;
+  --muted: #5c5c5c;
+  --accent: #00629b;
+  --border: #e0e0e0;
+  --radius: 8px;
+  --max-width: 900px;
+  /* Shared by every result tile on the page. The Qualitative Comparison row is
+     4-up and defines the tile size; the Interactive Demo is 3-up and is capped
+     to render the same size, so both grids must agree on the gap. */
+  --tile-gap: 0.75rem;
+  --font: "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--text);
+  background: var(--bg);
+}
+
+/* Ambient rain layer (js/rain-bg.js): fixed behind everything, so it only
+   shows through the transparent gaps between opaque sections/cards -- same
+   trick the CodeFormer project page uses for its particle-network layer. */
+#rain-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+/* Opaque page panel wrapping header+main+footer: with the rain canvas fixed
+   behind everything at z-index -1, this hides the rain everywhere inside the
+   panel (including the gaps between sections) so it only reads through on
+   the two sides. Capped with a floor so it never squeezes narrower than the
+   900px content column plus breathing room -- the grids below (.zoom-row,
+   .compare-grid--results) key their breakpoints to the viewport width, so
+   the column they render into must stay exactly as wide as it always was.
+   Below that floor there's no room for side margins anyway, so the panel
+   just quietly becomes full width. */
+.page-shell {
+  max-width: max(70vw, calc(var(--max-width) + 6rem));
+  margin-inline: auto;
+  /* Floats the panel off the viewport edge on every side, like the side
+     margins it already has, so the top reads the same as the left/right. */
+  margin-block: clamp(1.25rem, 3vw, 2.5rem);
+  background: var(--surface);
+  border-radius: 16px;
+  /* No overflow: hidden here (used to clip .hero's square corners to the
+     panel's rounded ones) -- it also silently breaks position: sticky on
+     any descendant, in every browser, even though this panel never scrolls
+     on its own. .hero carries its own matching top radius instead (below),
+     so the corners still read as rounded without an overflow-hidden
+     ancestor in the way of .tabs-nav's sticky nav. */
+  box-shadow:
+    0 24px 48px -16px rgba(0, 0, 0, 0.22),
+    0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.container {
+  width: min(100% - 2rem, var(--max-width));
+  margin-inline: auto;
+}
+
+.hero {
+  background: var(--surface);
+  padding: 2.5rem 0 2rem;
+  text-align: center;
+  /* Matches .page-shell's own 16px so the top corners still read as rounded
+     now that .page-shell no longer clips its children to that shape. */
+  border-radius: 16px 16px 0 0;
+}
+
+/* Section jump-links, styled as a ribbon of overlapping parallelogram tabs
+   (structure borrowed from CodeFormer's #tabs). Each <a> is a parallelogram
+   via clip-path; a negative margin tucks each one under the previous tab's
+   slanted edge so the row reads as one connected strip rather than separate
+   pills. Colors are this page's own (light tab, dark text, accent on
+   hover/focus) rather than CodeFormer's white-on-grey, which depends on a
+   darker header backdrop this page doesn't have. */
+.tabs-nav {
+  margin-top: 1.75rem;
+  /* The light-grey banding the tabs sit in, matching CodeFormer's header. */
+  background: linear-gradient(to bottom, #ececec, #e2e2e2);
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  /* Pins the jump-links to the top of the viewport once the page scrolls
+     past them, so a reader deep in a section can always jump to another
+     one. Stays within .page-shell's own box (it never needs to escape it),
+     so that ancestor's overflow: hidden -- there for the rounded corners --
+     does not interfere. */
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+
+.tabs-nav ul {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+}
+
+.tabs-nav li {
+  /* Each tab is its own standalone piece (not a connected ribbon), so its
+     shadow wraps the whole shape instead of just a shared edge. filter (not
+     box-shadow) so the shadow follows the clip-path outline rather than the
+     invisible rectangular box behind it. */
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.25));
+}
+
+.tabs-nav a {
+  display: inline-block;
+  padding: 0.6rem 1.5rem 0.6rem 1.75rem;
+  background: linear-gradient(to bottom, #c2c6ca 0%, #9aa0a6 100%);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+  clip-path: polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%);
+}
+
+.tabs-nav a:hover,
+.tabs-nav a:focus-visible {
+  background: linear-gradient(to bottom, #1f7fb8, var(--accent));
+  color: #fff;
+  text-decoration: none;
+}
+
+/* Current section, set by js/scroll-spy.js as the reader scrolls. Reuses the
+   hover treatment (same accent gradient) so "active" and "hovered" read as
+   the same state, plus a bit of extra weight so it still reads as current
+   when the pointer is elsewhere and :hover isn't in play. */
+.tabs-nav a.is-active {
+  background: linear-gradient(to bottom, #1f7fb8, var(--accent));
+  color: #fff;
+  font-weight: 800;
+}
+
+.venue {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+h1 {
+  margin: 0 0 1rem;
+  font-size: clamp(1.5rem, 4vw, 2.1rem);
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+h2 {
+  margin: 0 0 1rem;
+  font-size: 1.35rem;
+  font-weight: 600;
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 0.4rem;
+}
+
+.authors {
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+}
+
+.affiliations {
+  margin: 0 0 1.25rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.anonymous {
+  font-style: italic;
+  color: var(--muted);
+}
+
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.btn {
+  display: inline-block;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.btn:hover {
+  border-color: var(--accent);
+  text-decoration: none;
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.08);
+  color: #fff;
+}
+
+.section {
+  padding: 2rem 0;
+  /* Clears the sticky .tabs-nav (~3.8rem tall: its own 1.5rem padding +
+     each tab's 1.2rem padding + line-height) plus a little breathing room,
+     so a nav-link jump doesn't land the section's heading underneath it. */
+  scroll-margin-top: 4.5rem;
+}
+
+.section + .section {
+  border-top: 1px solid var(--border);
+}
+
+/* Body paragraphs and section captions (Abstract, System Architecture,
+   Result Demonstration, ...) are justified. The "withheld for review" notes
+   stay left-aligned. A one-line paragraph is unaffected by justify, since the
+   last line of a block is never stretched. hyphens keeps narrow viewports
+   from opening wide gaps between words. */
+.section > p:not(.anonymous) {
+  text-align: justify;
+  hyphens: auto;
+}
+
+.caption {
+  margin: -0.5rem 0 1rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.media-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.media-box video,
+.media-box iframe {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
+}
+
+figure {
+  margin: 0;
+}
+
+figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #eee;
+}
+
+figcaption {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.table-card {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto 1rem;
+  padding: 1.25rem;
+  overflow-x: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.results-table {
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  margin: 0 auto;
+}
+
+.results-table th,
+.results-table td {
+  padding: 0.5rem 1rem;
+  text-align: center;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+
+.results-table th:first-child,
+.results-table td:first-child {
+  text-align: left;
+  white-space: normal;
+}
+
+.results-table thead th {
+  font-weight: 600;
+  background: var(--bg);
+  border-bottom: 2px solid var(--border);
+}
+
+.results-table thead tr:first-child th {
+  border-top: 2px solid var(--border);
+}
+
+/* Blank-row gap in the source table, between supervised and unsupervised
+   method groups, becomes a rule since the page doesn't render empty rows. */
+.results-table tr.group-start td {
+  border-top: 2px solid #c2c2c2;
+}
+
+.results-table tbody tr:last-child td {
+  border-bottom: 2px solid var(--border);
+}
+
+/* Best / second-best rows: tint the whole row so the method name reads as
+   important too, not just its numbers, matching the source table's emphasis. */
+.results-table tr.best td {
+  color: #d62728;
+  font-weight: 700;
+  background: rgba(214, 39, 40, 0.07);
+}
+
+.results-table tr.second-best td {
+  color: #1f66b4;
+  font-weight: 600;
+  background: rgba(31, 102, 180, 0.07);
+}
+
+/* ── Qualitative comparison grid (Input / GT / baselines / Ours) ──
+   One row per scene, seven methods wide, column labels given once in a head
+   row rather than per tile. Columns are fluid (1fr each) so all seven tiles
+   always fit the container width by shrinking together, rather than
+   triggering a horizontal scrollbar. */
+
+.qual-scroll {
+  margin-bottom: 1rem;
+}
+
+.qual-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.4rem;
+}
+
+/* display:contents makes the head/row wrapper invisible to layout, so its
+   children land directly in the grid's own column tracks instead of each
+   wrapper claiming a single cell. */
+.qual-head,
+.qual-row {
+  display: contents;
+}
+
+.qual-head span {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: center;
+  padding-bottom: 0.35rem;
+}
+
+.qual-item {
+  margin: 0;
+}
+
+.qual-item img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+}
+
+.link-list {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.link-list li {
+  margin-bottom: 0.35rem;
+}
+
+.bibtex {
+  margin: 0;
+  padding: 1rem;
+  overflow-x: auto;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  background: #f0f0f0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.bibtex code {
+  font-family: Consolas, "Courier New", monospace;
+}
+
+.footer {
+  margin-top: 1rem;
+  padding: 1.5rem 0 2rem;
+  border-top: 1px solid var(--border);
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.footer p {
+  margin: 0.25rem 0;
+}
+
+.small {
+  font-size: 0.8rem;
+}
+
+/* Shrinks the image grids in Result Demonstration / Ours Results a bit
+   relative to the text container. Every tile size below is a percentage of
+   this wrapper's width, so narrowing it here scales all of them down
+   together without touching their calc() formulas. */
+.media-narrow {
+  max-width: 76%;
+  margin-inline: auto;
+}
+
+/* ── Draggable before/after compare slider ── */
+
+.compare-grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.compare-wrap {
+  margin: 0;
+}
+
+.compare-wrap figcaption {
+  margin-top: 0.65rem;
+}
+
+.compare {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #111;
+  cursor: col-resize;
+  touch-action: none;
+  aspect-ratio: 16 / 9;
+}
+
+.compare.is-dragging {
+  cursor: grabbing;
+}
+
+.compare__img--base {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.compare__overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.compare__overlay img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.compare__handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  margin-left: -1.5px;
+  background: #fff;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.45);
+  cursor: col-resize;
+  /* Above the loupe (z-index 3). The lens is drawn at the pointer, so it lands
+     right on top of the handle exactly when the user is reaching for it --
+     the grab knob must not be swallowed by the magnifier. Drawing the handle
+     over the lens also makes its line continuous through the circle, which
+     reads as one split rather than two. */
+  z-index: 4;
+  touch-action: none;
+}
+
+.compare__handle::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 40px;
+  height: 40px;
+  margin: -20px 0 0 -20px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.compare__handle::after {
+  content: "◀ ▶";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 9px;
+  letter-spacing: -1px;
+  color: var(--accent);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.compare__label {
+  position: absolute;
+  bottom: 10px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 4px;
+  z-index: 1;
+  pointer-events: none;
+  user-select: none;
+}
+
+.compare__label--left {
+  left: 10px;
+}
+
+.compare__label--right {
+  right: 10px;
+}
+
+.compare--square {
+  aspect-ratio: 1 / 1;
+}
+
+/* Ours Results grid: 4 sliders per row on desktop (matching the Result
+   Demonstration row above), 2 then 1 as it narrows. */
+.compare-grid--results {
+  grid-template-columns: 1fr;
+  gap: var(--tile-gap);
+  margin-inline: auto;
+}
+
+@media (min-width: 560px) {
+  .compare-grid--results {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 820px) {
+  .compare-grid--results {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.compare-grid--results figcaption,
+.compare-solo figcaption {
+  margin-top: 0.45rem;
+  font-size: 0.85rem;
+}
+
+/* Slightly trimmed handle + labels: the tiles are ~275 px, not full width */
+.compare-grid--results .compare__handle::before,
+.compare-solo .compare__handle::before {
+  width: 32px;
+  height: 32px;
+  margin: -16px 0 0 -16px;
+}
+
+.compare-grid--results .compare__handle::after,
+.compare-solo .compare__handle::after {
+  font-size: 8px;
+}
+
+.compare-grid--results .compare__label,
+.compare-solo .compare__label {
+  bottom: 8px;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.68rem;
+}
+
+.compare-grid--results .compare__label--left,
+.compare-solo .compare__label--left {
+  left: 8px;
+}
+
+.compare-grid--results .compare__label--right,
+.compare-solo .compare__label--right {
+  right: 8px;
+}
+
+/* Auto-sweeping sliders: hide the drag affordance until pointed at */
+.compare[data-auto] .compare__handle::before,
+.compare[data-auto] .compare__handle::after {
+  opacity: 0.35;
+  transition: opacity 0.2s ease;
+}
+
+.compare[data-auto]:hover .compare__handle::before,
+.compare[data-auto]:hover .compare__handle::after,
+.compare[data-auto]:focus-within .compare__handle::before,
+.compare[data-auto]:focus-within .compare__handle::after {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .compare[data-auto] .compare__handle::before,
+  .compare[data-auto] .compare__handle::after {
+    opacity: 1;
+  }
+}
+
+/* ── Hover magnifier (loupe) ──
+   A circular 2x lens that follows the pointer, still split by the handle so
+   both layers are compared at the same pixel. Built by compare-slider.js only
+   on hover-capable, fine-pointer devices, so there is no touch fallback to
+   style here. The ring is a box-shadow rather than a border: a border would
+   shrink the content box and shift the magnified centre off the pointer. */
+
+.compare__loupe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 3;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  background: #111;
+  box-shadow: 0 0 0 2px #fff, 0 3px 12px rgba(0, 0, 0, 0.5);
+}
+
+.compare.has-loupe .compare__loupe {
+  opacity: 1;
+}
+
+.compare__loupe-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-repeat: no-repeat;
+  /* Sources are 256 px, so 2x is already past native. Keep the smooth
+     interpolation: hard pixel edges would read as an artefact of the result
+     rather than of the display. */
+  image-rendering: auto;
+}
+
+.compare__loupe-clip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 0;
+  overflow: hidden;
+}
+
+/* The real handle now draws on top of the lens at this exact x, so this line
+   only shows through where the handle's own line is translucent or offset.
+   Kept so the lens stays correct on its own if the stacking ever changes. */
+.compare__loupe-split {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: rgba(255, 255, 255, 0.85);
+}
+
+/* The knob now draws over the lens, which means it covers the very pixels the
+   user zoomed in on -- and the knob's whole job is to sit at the split, so
+   that overlap is the common case, not an edge case. Hollow it out while the
+   lens is up: still unmistakably the grab affordance, but you can read the
+   magnified image straight through it. */
+.compare.has-loupe .compare__handle::before {
+  background: transparent;
+  border-color: #fff;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.65), inset 0 0 5px rgba(0, 0, 0, 0.65);
+}
+
+.compare.has-loupe .compare__handle::after {
+  color: #fff;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.9);
+}
+
+/* ── Four-up row with a synced magnifier (Input / GT / CSUD / Ours) ──
+   A separate component from .compare: these are plain images, not sliders.
+   Driven by js/loupe-row.js. Hovering any tile lenses all of them at the same
+   normalised point, so one streak can be followed across all four methods. */
+
+.zoom-row {
+  display: grid;
+  /* Same breakpoints as .compare-grid--results (Ours Results) so a tile here
+     is always exactly the size of a tile there, at every viewport width. */
+  grid-template-columns: 1fr;
+  gap: var(--tile-gap);
+  /* The caption that follows carries .caption's -0.5rem top margin, which is
+     tuned for sitting under an h2; this restores a normal gap below the row. */
+  margin-bottom: 2rem;
+}
+
+@media (min-width: 560px) {
+  .zoom-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 820px) {
+  .zoom-row {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.zoom-item {
+  margin: 0;
+}
+
+/* The one-tile magnifier demo. Its width is the results row's own track
+   formula rather than a fixed number, so the demo tile is exactly the size of
+   the tiles it is teaching -- what the reader practises on is what they get --
+   and it stays that way when the row reflows to two columns. */
+.zoom-solo {
+  display: block;
+  width: calc((100% - 3 * var(--tile-gap)) / 4);
+  margin-inline: auto;
+  margin-bottom: 1.5rem;
+}
+
+@media (max-width: 640px) {
+  .zoom-solo {
+    width: calc((100% - var(--tile-gap)) / 2);
+  }
+}
+
+.zoom-tile {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #111;
+  /* The one zero-motion cue that works for everyone, reduced-motion readers
+     included: the pointer itself says the tile magnifies. */
+  cursor: zoom-in;
+}
+
+/* The tile owns the frame, so the global `figure img` border and radius have
+   to come off, otherwise every tile draws a second, inset border. */
+.zoom-tile img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.zoom-item figcaption {
+  margin-top: 0.45rem;
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--text);
+}
+
+/* Ring drawn with box-shadow, not border: a border would shrink the content
+   box and shift the magnified centre off the sampled point. */
+.zoom-tile__lens {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: 50%;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  box-shadow: 0 0 0 2px #fff, 0 3px 12px rgba(0, 0, 0, 0.5);
+}
+
+.zoom-row.is-zooming .zoom-tile__lens {
+  opacity: 1;
+}
+
+/* Ghost cursor for the self-demonstrating tour. Drawn on the first tile only:
+   a reader has one mouse, so four arrows would say the opposite of what this
+   row does. One arrow beside four moving lenses says "this pointer drives all
+   of them", which is the whole component, and is not something a still image
+   can state. It disappears the instant a real pointer arrives. */
+.zoom-ghost {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 12px;
+  height: 18px;
+  background: #fff;
+  /* A plain arrow silhouette; the tip sits at (0,0) so the script can place it
+     at the sampled point with no hotspot offset to keep in sync. */
+  clip-path: polygon(
+    0 0,
+    0 16px,
+    4.2px 12.2px,
+    6.6px 17.6px,
+    8.6px 16.7px,
+    6.3px 11.9px,
+    11px 11.6px
+  );
+  /* drop-shadow follows the clipped silhouette, so this outlines the arrow
+     rather than boxing it, it has to stay legible over any image. */
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.95))
+    drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+.zoom-row.is-auto .zoom-ghost {
+  opacity: 1;
+}
+
+/* ── The standalone demonstration slider ──
+   One always-on sweep above the grid: it shows what the control does, and the
+   six manual scenes below refer back to it. Sized like a demo tile rather than
+   a full-width figure so it reads as one of them, not as a teaser. */
+
+.compare-solo {
+  /* Sized off the SAME grid as the six scenes below rather than a fixed
+     max-width: it has to stay one tile wide at every breakpoint, and a fixed
+     width would overtake the tiles as soon as the viewport narrowed enough to
+     shrink them. Sitting in the middle track centres it on desktop. */
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--tile-gap);
+  margin-inline: auto;
+  margin-bottom: 1.75rem;
+}
+
+@media (min-width: 560px) {
+  .compare-solo {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 641px) and (max-width: 819px) {
+  .compare-solo {
+    max-width: calc(50% - var(--tile-gap) * 0.5);
+  }
+}
+
+@media (min-width: 820px) {
+  .compare-solo {
+    grid-template-columns: repeat(3, 1fr);
+    max-width: calc(75% - var(--tile-gap) * 0.25);
+  }
+
+  .compare-solo > .compare-wrap {
+    grid-column: 2;
+  }
+}
+
+/* The "Drag to compare" pill. Drawn on .compare's own ::after, so it costs no
+   extra markup. */
+
+.compare[data-auto-hint]::after {
+  content: "\2194  Drag to compare";
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.2rem 0.6rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #fff;
+  background: var(--accent);
+  border-radius: 999px;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  /* Above the handle (4) and the loupe (3): it is the one thing on the tile
+     that must never be covered while it still has something to say. */
+  z-index: 5;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+
+/* Once the reader is on the image they are already engaging with it, so the
+   instruction gets out of the way -- and out of the loupe's way. */
+.compare[data-auto-hint]:hover::after,
+.compare[data-auto-hint]:focus-within::after {
+  opacity: 0;
+}

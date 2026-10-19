@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DRC-Derain</title>
+  <meta name="description" content="DRC-Derain: Detect-Restore-Compose Framework for Unpaired Single-Image Deraining — supplementary page for an anonymous manuscript under review.">
+  <!-- REVIEW STAGE: keep the page out of search results and search caches.
+       Remove this line after acceptance so the page can be found. -->
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="stylesheet" href="./css/style.css?v=4">
+  <!-- Optional: uncomment after acceptance
+  <meta property="og:title" content="DRC-Derain: Detect-Restore-Compose Framework for Unpaired Single-Image Deraining">
+  <meta property="og:description" content="A Detect-Restore-Compose framework that reformulates unpaired single-image deraining as localized image editing.">
+  <meta property="og:image" content="./assets/teaser-derained.png">
+  -->
+</head>
+<body>
+  <div class="page-shell">
+  <header class="hero">
+    <div class="container">
+      <!-- SUBMIT STAGE: venue withheld. After acceptance, replace with the journal name. -->
+      <p class="venue">Manuscript under review</p>
+      <h1>DRC-Derain: Detect-Restore-Compose Framework for Unpaired Single-Image Deraining</h1>
+
+      <!-- SUBMIT STAGE: keep anonymous. Replace after acceptance. -->
+      <p class="authors anonymous">Anonymous Author(s)</p>
+      <p class="affiliations anonymous">Affiliation withheld for review</p>
+
+      <!-- AFTER ACCEPTANCE: uncomment and remove .anonymous blocks above
+      <p class="authors">
+        <a href="#">First Author</a><sup>1</sup>,
+        <a href="#">Second Author</a><sup>1,2</sup>
+      </p>
+      <p class="affiliations">
+        <sup>1</sup>Your University &nbsp;
+        <sup>2</sup>Partner Lab
+      </p>
+      -->
+
+      <div class="btn-row">
+        <a class="btn btn-primary" href="#">Paper (PDF)</a>
+        <a class="btn" href="#">Supplementary (ZIP)</a>
+        <a class="btn" href="https://github.com/Jenniferduong20012004/DRC-Derain" target="_blank" rel="noopener noreferrer">Code</a>
+        <a class="btn" href="https://youtu.be/lu9lspMipS4" target="_blank" rel="noopener noreferrer">Video</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Section jump-links, styled as an overlapping chevron/ribbon strip
+       (structure adapted from CodeFormer's #tabs, recolored for this
+       page's light theme since that page's white-on-gray tabs rely on a
+       darker header backdrop this page doesn't have).
+       Lives as a sibling of .hero (not nested inside it): position: sticky
+       only stays stuck for as long as the viewport is scrolled within its
+       PARENT's box, and .hero is short -- past it, the nav would scroll
+       away with it. Sitting directly in .page-shell instead, which spans
+       the whole page, keeps it pinned all the way to the footer. -->
+  <nav class="tabs-nav" aria-label="Jump to section">
+    <ul>
+      <li><a href="#abstract">Abstract</a></li>
+      <li><a href="#system-architecture">System Architecture</a></li>
+      <li><a href="#result-demonstration">Result Demonstration</a></li>
+      <li><a href="#ours-results">Ours Results</a></li>
+      <li><a href="#comparison">Comparison</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <section id="abstract" class="container section">
+      <h2>Abstract</h2>
+      <p>
+        Unpaired single-image deraining removes the need for aligned rainy&ndash;clean
+        pairs, yet existing translation-based methods remain severely under-constrained:
+        the generator is free to re-synthesize the entire image, even though rain
+        typically corrupts only part of the scene. This unnecessary freedom often
+        alters reliable background content. We propose <strong>DRC-Derain</strong>, a
+        Detect-Restore-Compose framework that reformulates unpaired
+        deraining as localized image editing. A frequency-aware detector first
+        estimates rain-affected regions by fusing weak photometric cues, learnable
+        spectral features, and spatial context. A restoration network then predicts
+        content only within these regions, while rain-free pixels are copied directly
+        from the input via mask-guided composition. To learn this decomposition
+        without paired supervision, we introduce three complementary mechanisms:
+        a mask-guided reverse mapping that confines rain synthesis to the given region
+        and turns cycle reconstruction into an additional localization signal;
+        replay of historical masks on unrelated clean images to synthesize controlled
+        rainy samples with known rain support; and adaptive weak-mask supervision,
+        which weighs the imperfect photometric prior by degradation-aware restoration
+        quality rather than treating it as fixed pseudo-ground truth. Experiments on
+        synthetic and real-world benchmarks show that DRC-Derain achieves competitive
+        deraining performance while better preserving rain-free content and improving
+        robustness under unpaired training.
+      </p>
+    </section>
+
+    <section id="system-architecture" class="container section">
+      <h2>System Architecture</h2>
+      <figure class="figure">
+        <img src="./assets/framework.jpg" loading="lazy" decoding="async"
+             alt="Overview of the proposed framework architecture">
+        <figcaption>
+          Overview of our DRC-Derain framework.
+        </figcaption>
+      </figure>
+      <p>
+        We address single-image deraining under an <strong>unpaired setting</strong>:
+        during training, a rainy image and a clean image are sampled independently,
+        with no pixel-aligned pairs, rain-layer annotations, or ground-truth rain
+        masks required. At inference time, only a rainy image is given.
+      </p>
+      <p>
+        A direct unpaired mapping is inherently under-constrained, since rain
+        occupies only a sparse portion of the image while an unconstrained
+        generator can modify the entire scene - risking removal of fine
+        background structures, altered illumination, or superficial appearance
+        changes instead of genuine rain removal. Standard cycle consistency does
+        not fully resolve this, since the reverse generator can infer where rain
+        was removed from the translated image itself, which may encourage the
+        forward mapping to preserve weak rain traces as an implicit reconstruction
+        cue.
+      </p>
+      <p>
+        We address this by explicitly modeling the <strong>spatial support of
+        rain</strong>, formulating unpaired deraining as a localized
+        detect-restore-compose transformation coupled with a
+        mask-conditioned reverse mapping. This yields our
+        <strong>Detect-Restore-Compose framework (DRC-Derain)</strong>, consisting
+        of a rain-removal generator G<sub>A</sub>, a rain-synthesis generator
+        G<sub>B</sub>, and two domain discriminators D<sub>A</sub> (clean-domain
+        realism) and D<sub>B</sub> (rainy-domain realism).
+      </p>
+      <p>
+        Given a rainy image <em>x</em>, the forward generator produces both a
+        derained image and a raw rain mask, (x̂, a) = G<sub>A</sub>(x). Rather than
+        reconstructing the entire image, G<sub>A</sub> modifies the input only
+        within the soft support derived from mask <em>a</em>, preserving reliable
+        rain-free pixels by construction. The same mask is reused by the reverse
+        generator to form a rainy cycle, x̄ = G<sub>B</sub>(x̂, a): since
+        G<sub>B</sub> is restricted to synthesizing rain inside the supplied
+        support, reconstructing the original rainy image requires the mask to
+        cover the rain that was removed, turning the cycle into an additional
+        localization signal rather than mere invertibility.
+      </p>
+      <p>
+        A complementary clean cycle starts from an unrelated clean image
+        <em>y</em>: a raw rain mask is sampled from a replay pool of historical
+        masks predicted from real rainy images, used by G<sub>B</sub> to
+        synthesize a rainy version of <em>y</em>, which G<sub>A</sub> then
+        processes and is expected to recover as the original clean content. The
+        two occurrences of G<sub>A</sub> (and of G<sub>B</sub>) share parameters,
+        while G<sub>A</sub> and G<sub>B</sub> remain distinct networks, as do
+        D<sub>A</sub> and D<sub>B</sub>. At inference, the reverse generator and
+        both discriminators are discarded, leaving only G<sub>A</sub> is required for
+        end-to-end deraining.
+      </p>
+    </section>
+
+    <!-- Four-up qualitative comparison, scene 387. The auto-sweeping head-to-head
+         that used to sit here moved into the Interactive Demo, where it now
+         earns its keep as the affordance hint for the draggable sliders. -->
+    <section id="result-demonstration" class="container section">
+      <h2>Result Demonstration</h2>
+      <!-- Four-up synced magnifier. Independent of the sliders below:
+           js/loupe-row.js, .zoom-* styles, assets/loupe/. -->
+      <p class="caption">
+        One scene, four images. Hover anywhere over any tile and all four
+        magnify the <em>same</em> point at once, so you can pick a streak in
+        the input and follow what each method did to it, side by side against
+        the ground truth. The sample below shows the magnifier working; the
+        results are underneath it.
+      </p>
+
+      <!-- One-tile demonstration of the magnifier, on a throwaway sample rather
+           than on a result scene, so a control demo is never mistaken for a
+           claim. data-zoom-auto is opt-in precisely so the results row below
+           stays still. -->
+      <div class="media-narrow">
+      <div class="zoom-row zoom-solo" data-zoom-auto="true">
+        <figure class="zoom-item">
+          <div class="zoom-tile">
+            <img src="./assets/sample/input.png" width="256" height="256"
+                 alt="Sample rainy image demonstrating the magnifier">
+          </div>
+          <figcaption>Sample: hover to magnify</figcaption>
+        </figure>
+      </div>
+
+      <div class="zoom-row">
+        <figure class="zoom-item">
+          <div class="zoom-tile">
+            <img src="./assets/loupe/i387.png" width="256" height="256"
+                 loading="lazy" decoding="async"
+                 alt="Rainy input (scene 387)">
+          </div>
+          <figcaption>Input</figcaption>
+        </figure>
+        <figure class="zoom-item">
+          <div class="zoom-tile">
+            <img src="./assets/loupe/op387.png" width="256" height="256"
+                 loading="lazy" decoding="async"
+                 alt="Ground truth, rain-free reference (scene 387)">
+          </div>
+          <figcaption>Ground truth</figcaption>
+        </figure>
+        <figure class="zoom-item">
+          <div class="zoom-tile">
+            <img src="./assets/loupe/c387.png" width="256" height="256"
+                 loading="lazy" decoding="async"
+                 alt="SOTA (CSUD) deraining result (scene 387)">
+          </div>
+          <figcaption>SOTA</figcaption>
+        </figure>
+        <figure class="zoom-item">
+          <div class="zoom-tile">
+            <img src="./assets/loupe/o387.png" width="256" height="256"
+                 loading="lazy" decoding="async"
+                 alt="Our deraining result (scene 387)">
+          </div>
+          <figcaption>Ours</figcaption>
+        </figure>
+      </div>
+      </div>
+
+      <p class="caption" style="margin-top:0;">
+        <strong>About the SOTA baseline (CSUD).</strong> CSUD, short for
+        <em>Channel Consistency Prior and Self-Reconstruction Strategy Based
+        Unsupervised Image Deraining</em> (CVPR 2025), removes rain without
+        paired rainy/clean training data. It adds a Channel Consistency Loss
+        built on a Channel Consistency Prior of rain streaks so the
+        pseudo-rainy images it generates for training stay realistic while
+        preserving background detail, and a Self-Reconstruction strategy that
+        curbs redundant information transfer in the generator. It reports
+        state-of-the-art results among unsupervised deraining methods with
+        strong generalization, making it the baseline our method is compared
+        against above.
+      </p>
+    </section>
+
+    <!-- Interactive demo: 6 draggable input vs. ours sliders -->
+    <section id="ours-results" class="container section">
+      <h2>Ours Results</h2>
+      <p class="caption">
+        The slider below runs on its own to show what the control does. The six
+        scenes under it behave identically, but are yours to drive: drag a
+        handle, click anywhere on an image, or use the arrow keys. Fully left =
+        our derained output; fully right = the rainy input. Hover any of them
+        for a 2&times; magnifier over the residual streaks.
+      </p>
+
+      <!-- Standalone demonstration slider. It sweeps for as long as the page is
+           open -- it is not a one-shot hint, it is the worked example the grid
+           below refers back to. Pauses only for the usual reasons (hover, drag,
+           off-screen, hidden tab, reduced motion). -->
+      <div class="media-narrow">
+      <div class="compare-solo">
+        <figure class="compare-wrap">
+          <div class="compare compare--square" data-position="50"
+               data-auto="true" data-auto-hint="true">
+            <img class="compare__img compare__img--base" width="256" height="256"
+                 src="./assets/sample/input.png" alt="Sample rainy input">
+            <div class="compare__overlay">
+              <img width="256" height="256"
+                   src="./assets/sample/ours.png" alt="Our deraining result on the sample">
+            </div>
+            <div class="compare__handle" role="slider"
+                 aria-label="Compare the sample rainy input and our result"
+                 aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"
+                 tabindex="0"></div>
+            <span class="compare__label compare__label--left">Ours</span>
+            <span class="compare__label compare__label--right">Input</span>
+          </div>
+          <figcaption>Sample: drag to compare</figcaption>
+        </figure>
+      </div>
+
+      <div class="compare-grid compare-grid--results">
+        <figure class="compare-wrap">
+          <div class="compare compare--square" data-position="50">
+            <img class="compare__img compare__img--base" loading="lazy" decoding="async"
+                 width="256" height="256"
+                 src="./assets/slider/1/i1-865.png" alt="Rainy input (scene 865)">
+            <div class="compare__overlay">
+              <img loading="lazy" decoding="async" width="256" height="256"
+                   src="./assets/slider/1/o1-865.png" alt="Our deraining result (scene 865)">
+            </div>
+            <div class="compare__handle" role="slider"
+                 aria-label="Compare rainy input and our result, scene 865"
+                 aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"
+                 tabindex="0"></div>
+            <span class="compare__label compare__label--left">Ours</span>
+            <span class="compare__label compare__label--right">Input</span>
+          </div>
+        </figure>
+        <figure class="compare-wrap">
+          <div class="compare compare--square" data-position="50">
+            <img class="compare__img compare__img--base" loading="lazy" decoding="async"
+                 width="256" height="256"
+                 src="./assets/slider/2/i4.png" alt="Rainy input (scene 4)">
+            <div class="compare__overlay">
+              <img loading="lazy" decoding="async" width="256" height="256"
+                   src="./assets/slider/2/o4.png" alt="Our deraining result (scene 4)">
+            </div>
+            <div class="compare__handle" role="slider"
+                 aria-label="Compare rainy input and our result, scene 4"
+                 aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"
+                 tabindex="0"></div>
+            <span class="compare__label compare__label--left">Ours</span>
+            <span class="compare__label compare__label--right">Input</span>
+          </div>
+        </figure>
+        <figure class="compare-wrap">
+          <div class="compare compare--square" data-position="50">
+            <img class="compare__img compare__img--base" loading="lazy" decoding="async"
+                 width="256" height="256"
+                 src="./assets/slider/3/i6.png" alt="Rainy input (scene 6)">
+            <div class="compare__overlay">
+              <img loading="lazy" decoding="async" width="256" height="256"
+                   src="./assets/slider/3/o6.png" alt="Our deraining result (scene 6)">
+            </div>
+            <div class="compare__handle" role="slider"
+                 aria-label="Compare rainy input and our result, scene 6"
+                 aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"
+                 tabindex="0"></div>
+            <span class="compare__label compare__label--left">Ours</span>
+            <span class="compare__label compare__label--right">Input</span>
+          </div>
+        </figure>
+        <figure class="compare-wrap">
+          <div class="compare compare--square" data-position="50">
+            <img class="compare__img compare__img--base" loading="lazy" decoding="async"
+                 width="256" height="256"
+                 src="./assets/slider/4/a2fdcefa-ec27-4d5c-8dc1-2dec1c614832.jpg" alt="Rainy input (scene 497)">
+            <div class="compare__overlay">
+              <img loading="lazy" decoding="async" width="256" height="256"
+                   src="./assets/slider/4/a2fdcefa-ec27-4d5c-8dc1-2dec1c614832_ours.jpg" alt="Our deraining result (scene 497)">
+            </div>
+            <div class="compare__handle" role="slider"
+                 aria-label="Compare rainy input and our result, scene 497"
+                 aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"
+                 tabindex="0"></div>
+            <span class="compare__label compare__label--left">Ours</span>
+            <span class="compare__label compare__label--right">Input</span>
+          </div>
+        </figure>
+        <figure class="compare-wrap">
+          <div class="compare compare--square" data-position="50">
+            <img class="compare__img compare__img--base" loading="lazy" decoding="async"
+                 width="256" height="256"
+                 src="./assets/slider/5/141-input.png" alt="Rainy input (scene 141)">
+            <div class="compare__overlay">
+              <img loading="lazy" decoding="async" width="256" height="256"
+                   src="./assets/slider/5/141-ours.png" alt="Our deraining result (scene 141)">
+            </div>
+            <div class="compare__handle" role="slider"
+                 aria-label="Compare rainy input and our result, scene 141"
+                 aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"
+                 tabindex="0"></div>
+            <span class="compare__label compare__label--left">Ours</span>
+            <span class="compare__label compare__label--right">Input</span>
+          </div>
+        </figure>
+        <figure class="compare-wrap">
+          <div class="compare compare--square" data-position="50">
+            <img class="compare__img compare__img--base" loading="lazy" decoding="async"
+                 width="256" height="256"
+                 src="./assets/slider/6/i287.png" alt="Rainy input (scene 287)">
+            <div class="compare__overlay">
+              <img loading="lazy" decoding="async" width="256" height="256"
+                   src="./assets/slider/6/o287.png" alt="Our deraining result (scene 287)">
+            </div>
+            <div class="compare__handle" role="slider"
+                 aria-label="Compare rainy input and our result, scene 287"
+                 aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"
+                 tabindex="0"></div>
+            <span class="compare__label compare__label--left">Ours</span>
+            <span class="compare__label compare__label--right">Input</span>
+          </div>
+        </figure>
+
+        <figure class="compare-wrap">
+          <div class="compare compare--square" data-position="50">
+            <img class="compare__img--base" loading="lazy" decoding="async"
+                 width="256" height="256"
+                 src="./assets/slider/7/1014-i.png" alt="Rainy input (scene 1014)">
+            <div class="compare__overlay">
+              <img loading="lazy" decoding="async" width="256" height="256"
+                   src="./assets/slider/7/1014-r.png" alt="Our deraining result (scene 1014)">
+            </div>
+            <div class="compare__handle" role="slider"
+                 aria-label="Compare rainy input and our result, scene 1014"
+                 aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"
+                 tabindex="0"></div>
+            <span class="compare__label compare__label--left">Ours</span>
+            <span class="compare__label compare__label--right">Input</span>
+          </div>
+        </figure>
+        <figure class="compare-wrap">
+          <div class="compare compare--square" data-position="50">
+            <img class="compare__img--base" loading="lazy" decoding="async"
+                 width="256" height="256"
+                 src="./assets/slider/8/79eca3c1f2d8616490ef2b1d2a4f5a14.jpg" alt="Rainy input (scene 1004)">
+            <div class="compare__overlay">
+              <img loading="lazy" decoding="async" width="256" height="256"
+                   src="./assets/slider/8/79eca3c1f2d8616490ef2b1d2a4f5a14_ours.jpg" alt="Our deraining result (scene 1004)">
+            </div>
+            <div class="compare__handle" role="slider"
+                 aria-label="Compare rainy input and our result, scene 1004"
+                 aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"
+                 tabindex="0"></div>
+            <span class="compare__label compare__label--left">Ours</span>
+            <span class="compare__label compare__label--right">Input</span>
+          </div>
+        </figure>
+        <figure class="compare-wrap">
+          <div class="compare compare--square" data-position="50">
+            <img class="compare__img--base" loading="lazy" decoding="async"
+                 width="256" height="256"
+                 src="./assets/slider/9/1040-i9.png" alt="Rainy input (scene 1040)">
+            <div class="compare__overlay">
+              <img loading="lazy" decoding="async" width="256" height="256"
+                   src="./assets/slider/9/1040-r9.png" alt="Our deraining result (scene 1040)">
+            </div>
+            <div class="compare__handle" role="slider"
+                 aria-label="Compare rainy input and our result, scene 1040"
+                 aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"
+                 tabindex="0"></div>
+            <span class="compare__label compare__label--left">Ours</span>
+            <span class="compare__label compare__label--right">Input</span>
+          </div>
+        </figure>
+        <figure class="compare-wrap">
+          <div class="compare compare--square" data-position="50">
+            <img class="compare__img--base" loading="lazy" decoding="async"
+                 width="256" height="256"
+                 src="./assets/slider/10/1110-i10.png" alt="Rainy input (scene 1110)">
+            <div class="compare__overlay">
+              <img loading="lazy" decoding="async" width="256" height="256"
+                   src="./assets/slider/10/1110-r10.png" alt="Our deraining result (scene 1110)">
+            </div>
+            <div class="compare__handle" role="slider"
+                 aria-label="Compare rainy input and our result, scene 1110"
+                 aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"
+                 tabindex="0"></div>
+            <span class="compare__label compare__label--left">Ours</span>
+            <span class="compare__label compare__label--right">Input</span>
+          </div>
+        </figure>
+        <figure class="compare-wrap">
+          <div class="compare compare--square" data-position="50">
+            <img class="compare__img--base" loading="lazy" decoding="async"
+                 width="256" height="256"
+                 src="./assets/slider/11/408-i11.png" alt="Rainy input (scene 408)">
+            <div class="compare__overlay">
+              <img loading="lazy" decoding="async" width="256" height="256"
+                   src="./assets/slider/11/408-r11.png" alt="Our deraining result (scene 408)">
+            </div>
+            <div class="compare__handle" role="slider"
+                 aria-label="Compare rainy input and our result, scene 408"
+                 aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"
+                 tabindex="0"></div>
+            <span class="compare__label compare__label--left">Ours</span>
+            <span class="compare__label compare__label--right">Input</span>
+          </div>
+        </figure>
+        <figure class="compare-wrap">
+          <div class="compare compare--square" data-position="50">
+            <img class="compare__img--base" loading="lazy" decoding="async"
+                 width="256" height="256"
+                 src="./assets/slider/12/435-i12.png" alt="Rainy input (scene 435)">
+            <div class="compare__overlay">
+              <img loading="lazy" decoding="async" width="256" height="256"
+                   src="./assets/slider/12/435-r12.png" alt="Our deraining result (scene 435)">
+            </div>
+            <div class="compare__handle" role="slider"
+                 aria-label="Compare rainy input and our result, scene 435"
+                 aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"
+                 tabindex="0"></div>
+            <span class="compare__label compare__label--left">Ours</span>
+            <span class="compare__label compare__label--right">Input</span>
+          </div>
+        </figure>
+      </div>
+      </div>
+    </section>
+
+    <section id="comparison" class="container section">
+      <h2>Comparison</h2>
+      <p class="caption">
+        Qualitative comparison on representative real-world rain
+        scenes from the RealRain-1k-L test set. Each column is the same
+        input processed by one method.
+      </p>
+      <div class="qual-scroll">
+        <div class="qual-grid">
+          <div class="qual-head">
+            <span>Input</span>
+            <span>Ground truth</span>
+            <span>NLCL</span>
+            <span>DCD-GAN</span>
+            <span>DRSformer</span>
+            <span>CSUD</span>
+            <span>Ours</span>
+          </div>
+          <!-- Row 1: scene 865 -->
+          <div class="qual-row">
+            <figure class="qual-item">
+              <img src="./assets/comparision/1/i1-865.png" loading="lazy" decoding="async"
+                   alt="Rainy input (scene 865)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/1/op1-865.png" loading="lazy" decoding="async"
+                   alt="Ground truth, rain-free reference (scene 865)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/1/nlcl1-865.png" loading="lazy" decoding="async"
+                   alt="NLCL deraining result (scene 865)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/1/dcd1-865.png" loading="lazy" decoding="async"
+                   alt="DCD-GAN deraining result (scene 865)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/1/drs1-865.png" loading="lazy" decoding="async"
+                   alt="DRSformer deraining result (scene 865)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/1/c1-865.png" loading="lazy" decoding="async"
+                   alt="CSUD deraining result (scene 865)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/1/o1-865.png" loading="lazy" decoding="async"
+                   alt="Our deraining result (scene 865)">
+            </figure>
+          </div>
+          <!-- Row 2: scene 2 -->
+          <div class="qual-row">
+            <figure class="qual-item">
+              <img src="./assets/comparision/2/i2.png" loading="lazy" decoding="async"
+                   alt="Rainy input (scene 2)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/2/op2.png" loading="lazy" decoding="async"
+                   alt="Ground truth, rain-free reference (scene 2)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/2/nlcl2.png" loading="lazy" decoding="async"
+                   alt="NLCL deraining result (scene 2)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/2/dcd2.png" loading="lazy" decoding="async"
+                   alt="DCD-GAN deraining result (scene 2)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/2/drs2.png" loading="lazy" decoding="async"
+                   alt="DRSformer deraining result (scene 2)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/2/c2.png" loading="lazy" decoding="async"
+                   alt="CSUD deraining result (scene 2)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/2/o2.png" loading="lazy" decoding="async"
+                   alt="Our deraining result (scene 2)">
+            </figure>
+          </div>
+          <!-- Row 3: scene 849 -->
+          <div class="qual-row">
+            <figure class="qual-item">
+              <img src="./assets/comparision/3/i849.png" loading="lazy" decoding="async"
+                   alt="Rainy input (scene 849)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/3/op849.png" loading="lazy" decoding="async"
+                   alt="Ground truth, rain-free reference (scene 849)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/3/nlcl3-849.png" loading="lazy" decoding="async"
+                   alt="NLCL deraining result (scene 849)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/3/dcd3-849.png" loading="lazy" decoding="async"
+                   alt="DCD-GAN deraining result (scene 849)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/3/drs849.png" loading="lazy" decoding="async"
+                   alt="DRSformer deraining result (scene 849)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/3/c849.png" loading="lazy" decoding="async"
+                   alt="CSUD deraining result (scene 849)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/3/o849.png" loading="lazy" decoding="async"
+                   alt="Our deraining result (scene 849)">
+            </figure>
+          </div>
+          <!-- Row 4: scene 4 -->
+          <div class="qual-row">
+            <figure class="qual-item">
+              <img src="./assets/comparision/4/i4.png" loading="lazy" decoding="async"
+                   alt="Rainy input (scene 4)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/4/op4.png" loading="lazy" decoding="async"
+                   alt="Ground truth, rain-free reference (scene 4)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/4/nlcl4.png" loading="lazy" decoding="async"
+                   alt="NLCL deraining result (scene 4)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/4/dcd4.png" loading="lazy" decoding="async"
+                   alt="DCD-GAN deraining result (scene 4)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/4/drs4.png" loading="lazy" decoding="async"
+                   alt="DRSformer deraining result (scene 4)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/4/c4.png" loading="lazy" decoding="async"
+                   alt="CSUD deraining result (scene 4)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/4/o4.png" loading="lazy" decoding="async"
+                   alt="Our deraining result (scene 4)">
+            </figure>
+          </div>
+          <!-- Row 5: scene 5 -->
+          <div class="qual-row">
+            <figure class="qual-item">
+              <img src="./assets/comparision/5/i5.png" loading="lazy" decoding="async"
+                   alt="Rainy input (scene 5)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/5/op5.png" loading="lazy" decoding="async"
+                   alt="Ground truth, rain-free reference (scene 5)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/5/nlcl5.png" loading="lazy" decoding="async"
+                   alt="NLCL deraining result (scene 5)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/5/dcd5.png" loading="lazy" decoding="async"
+                   alt="DCD-GAN deraining result (scene 5)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/5/drs5.png" loading="lazy" decoding="async"
+                   alt="DRSformer deraining result (scene 5)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/5/c5.png" loading="lazy" decoding="async"
+                   alt="CSUD deraining result (scene 5)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/5/o5.png" loading="lazy" decoding="async"
+                   alt="Our deraining result (scene 5)">
+            </figure>
+          </div>
+          <!-- Row 6: scene 6 -->
+          <div class="qual-row">
+            <figure class="qual-item">
+              <img src="./assets/comparision/6/i6.png" loading="lazy" decoding="async"
+                   alt="Rainy input (scene 6)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/6/op6.png" loading="lazy" decoding="async"
+                   alt="Ground truth, rain-free reference (scene 6)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/6/nlcl6.png" loading="lazy" decoding="async"
+                   alt="NLCL deraining result (scene 6)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/6/dcd6.png" loading="lazy" decoding="async"
+                   alt="DCD-GAN deraining result (scene 6)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/6/drs6.png" loading="lazy" decoding="async"
+                   alt="DRSformer deraining result (scene 6)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/6/c6.png" loading="lazy" decoding="async"
+                   alt="CSUD deraining result (scene 6)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/6/o6.png" loading="lazy" decoding="async"
+                   alt="Our deraining result (scene 6)">
+            </figure>
+          </div>
+          <!-- Row 7: scene 7 -->
+          <div class="qual-row">
+            <figure class="qual-item">
+              <img src="./assets/comparision/7/i7.png" loading="lazy" decoding="async"
+                   alt="Rainy input (scene 7)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/7/op7.png" loading="lazy" decoding="async"
+                   alt="Ground truth, rain-free reference (scene 7)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/7/nlcl7.png" loading="lazy" decoding="async"
+                   alt="NLCL deraining result (scene 7)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/7/dcd7.png" loading="lazy" decoding="async"
+                   alt="DCD-GAN deraining result (scene 7)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/7/drs7.png" loading="lazy" decoding="async"
+                   alt="DRSformer deraining result (scene 7)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/7/c7.png" loading="lazy" decoding="async"
+                   alt="CSUD deraining result (scene 7)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/7/o7.png" loading="lazy" decoding="async"
+                   alt="Our deraining result (scene 7)">
+            </figure>
+          </div>
+          <!-- Row 8: scene 497 -->
+          <div class="qual-row">
+            <figure class="qual-item">
+              <img src="./assets/comparision/8/i497.png" loading="lazy" decoding="async"
+                   alt="Rainy input (scene 497)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/8/op497.png" loading="lazy" decoding="async"
+                   alt="Ground truth, rain-free reference (scene 497)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/8/nlcl497.png" loading="lazy" decoding="async"
+                   alt="NLCL deraining result (scene 497)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/8/dcd497.png" loading="lazy" decoding="async"
+                   alt="DCD-GAN deraining result (scene 497)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/8/drs497.png" loading="lazy" decoding="async"
+                   alt="DRSformer deraining result (scene 497)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/8/c497.png" loading="lazy" decoding="async"
+                   alt="CSUD deraining result (scene 497)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/8/o497.png" loading="lazy" decoding="async"
+                   alt="Our deraining result (scene 497)">
+            </figure>
+          </div>
+          <!-- Row 9: scene 387 -->
+          <div class="qual-row">
+            <figure class="qual-item">
+              <img src="./assets/comparision/9/i387.png" loading="lazy" decoding="async"
+                   alt="Rainy input (scene 387)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/9/op387.png" loading="lazy" decoding="async"
+                   alt="Ground truth, rain-free reference (scene 387)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/9/nlcl387.png" loading="lazy" decoding="async"
+                   alt="NLCL deraining result (scene 387)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/9/dcd387.png" loading="lazy" decoding="async"
+                   alt="DCD-GAN deraining result (scene 387)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/9/drs387.png" loading="lazy" decoding="async"
+                   alt="DRSformer deraining result (scene 387)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/9/c387.png" loading="lazy" decoding="async"
+                   alt="CSUD deraining result (scene 387)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/9/o387.png" loading="lazy" decoding="async"
+                   alt="Our deraining result (scene 387)">
+            </figure>
+          </div>
+          <!-- Row 10: scene 287 -->
+          <div class="qual-row">
+            <figure class="qual-item">
+              <img src="./assets/comparision/10/i287.png" loading="lazy" decoding="async"
+                   alt="Rainy input (scene 287)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/10/op287.png" loading="lazy" decoding="async"
+                   alt="Ground truth, rain-free reference (scene 287)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/10/nlcl287.png" loading="lazy" decoding="async"
+                   alt="NLCL deraining result (scene 287)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/10/dcd287.png" loading="lazy" decoding="async"
+                   alt="DCD-GAN deraining result (scene 287)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/10/drs287.png" loading="lazy" decoding="async"
+                   alt="DRSformer deraining result (scene 287)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/10/c287.png" loading="lazy" decoding="async"
+                   alt="CSUD deraining result (scene 287)">
+            </figure>
+            <figure class="qual-item">
+              <img src="./assets/comparision/10/o287.png" loading="lazy" decoding="async"
+                   alt="Our deraining result (scene 287)">
+            </figure>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TODO: add the video, then uncomment this section. Hidden for now so
+         the live page does not show an author-facing "place the file here" box.
+    <section id="video-demo" class="container section">
+      <h2>Video Demo</h2>
+      <div class="media-box">
+        <video controls poster="./assets/teaser-poster.png">
+          <source src="./assets/teaser.mp4" type="video/mp4">
+        </video>
+      </div>
+    </section>
+    -->
+
+    <!-- TODO: add assets/pipeline.png, then uncomment this section.
+         Left in as a comment because the file does not exist yet and a live
+         <img> to a missing file renders as a broken-image icon.
+    <section id="system-overview" class="container section">
+      <h2>System Overview</h2>
+      <figure>
+        <img src="./assets/pipeline.png" alt="System pipeline diagram">
+        <figcaption>End-to-end deraining pipeline.</figcaption>
+      </figure>
+    </section>
+    -->
+
+    <section id="bibtex" class="container section">
+      <h2>BibTeX</h2>
+      <p class="caption">Update with journal, volume, pages and DOI after publication.</p>
+      <pre class="bibtex"><code>@misc{anonymous2026drcderain,
+  title  = {DRC-Derain: Detect-Restore-Compose Framework for Unpaired Single-Image Deraining},
+  author = {Anonymous},
+  year   = {2026},
+  note   = {Manuscript under review}
+}</code></pre>
+    </section>
+
+    <section id="contact" class="container section">
+      <h2>Contact</h2>
+      <p class="anonymous">Contact information withheld for double-blind review.</p>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>Supplementary project page for an anonymous manuscript under review.</p>
+      <p class="small">Last updated: 2026</p>
+    </div>
+  </footer>
+  </div> <!-- .page-shell -->
+
+  <script src="./js/compare-slider.js"></script>
+  <script src="./js/loupe-row.js"></script>
+  <script src="./js/rain-bg.js"></script>
+  <script src="./js/scroll-spy.js"></script>
+</body>
+</html>
