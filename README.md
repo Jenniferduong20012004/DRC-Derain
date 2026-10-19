@@ -20,7 +20,7 @@ benchmarks demonstrate that DRC-Derain achieves competitive deraining performanc
 preserving unaffected image content and improving robustness under unpaired training.
 
 ## Model Architecture
-<img src="figures/framework.jpg" :height="100px">
+<img src="figures/framework (1).jpg" :height="100px">
 
 ### Installation
 
