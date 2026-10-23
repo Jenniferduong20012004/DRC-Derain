@@ -16,6 +16,9 @@
  * the row, while the row is off-screen, while the tab is hidden, and under
  * prefers-reduced-motion.
  *
+ * On touch screens (no hover) the lens follows taps instead of the pointer:
+ * a tap pins every lens at that point, a tap outside the row clears them.
+ *
  * Deliberately a separate file from compare-slider.js: these are plain images,
  * not sliders, and the slider's own loupe must not be disturbed by them.
  *
@@ -221,11 +224,14 @@
 
   function initRow(row) {
     if (row.dataset.zoom === "false") return;
-    // Same gate as the slider loupe: on touch the finger covers the lens, and
-    // there is no hover state to leave, so the row would stay stuck zoomed.
     if (typeof document.createElement !== "function") return;
     if (typeof window.matchMedia !== "function") return;
-    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+    // Touch screens get tap mode instead of hover tracking: a finger would
+    // cover a lens that follows it, and there is no hover state to leave. A
+    // tap pins all lenses at that point (the finger is gone by then, so
+    // nothing is covered); another tap moves them, a tap outside the row
+    // clears them.
+    const tapMode = !window.matchMedia("(hover: hover) and (pointer: fine)").matches;
 
     const tiles = Array.prototype.slice.call(row.querySelectorAll(".zoom-tile"));
     if (tiles.length === 0) return;
@@ -258,8 +264,9 @@
     });
 
     // No tour, no ghost: a results row must not carry an invisible arrow it
-    // will never show.
-    if (auto) ghost = makeGhost(tiles[0]);
+    // will never show. Tap mode has no ghost either -- a mouse arrow on a
+    // touch screen points at an input the reader doesn't have.
+    if (auto && !tapMode) ghost = makeGhost(tiles[0]);
 
     let resumeTimer = null;
     const clearResume = () => {
@@ -281,6 +288,20 @@
       row.classList.remove("is-auto");
       render(u, v);
     };
+
+    if (tapMode) {
+      // click, not pointerdown: it only fires for a tap, never for a swipe
+      // that scrolls the page across the tiles.
+      tiles.forEach((tile) => {
+        tile.addEventListener("click", (e) => takeOver(tile, e.clientX, e.clientY));
+      });
+      document.addEventListener("click", (e) => {
+        if (!row.classList.contains("is-zooming") || row.contains(e.target)) return;
+        row.classList.remove("is-zooming");
+        if (auto) auto.release("pointer");
+      });
+      return;
+    }
 
     tiles.forEach((tile) => {
       const track = (e) => {

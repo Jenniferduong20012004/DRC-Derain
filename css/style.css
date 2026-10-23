@@ -84,6 +84,34 @@ a:hover {
   text-decoration: underline;
 }
 
+/* Links inside running text are underlined, not just colored: color alone
+   doesn't tell a link apart for color-blind readers or in grayscale (axe:
+   link-in-text-block). Buttons and the nav keep their own styling. */
+main p a:not(.btn) {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+
+main p a:not(.btn):hover {
+  text-decoration-thickness: 2px;
+}
+
+/* Wording that depends on the input device ("hover" vs "tap"). */
+.only-touch {
+  display: none;
+}
+
+@media (hover: none) {
+  .only-hover {
+    display: none;
+  }
+
+  .only-touch {
+    display: inline;
+  }
+}
+
 .container {
   width: min(100% - 2rem, var(--max-width));
   margin-inline: auto;
@@ -91,31 +119,29 @@ a:hover {
 
 .hero {
   background: var(--surface);
-  padding: 2.5rem 0 2rem;
+  padding: 2.5rem 0 1.25rem;
   text-align: center;
   /* Matches .page-shell's own 16px so the top corners still read as rounded
      now that .page-shell no longer clips its children to that shape. */
   border-radius: 16px 16px 0 0;
 }
 
-/* Section jump-links, styled as a ribbon of overlapping parallelogram tabs
-   (structure borrowed from CodeFormer's #tabs). Each <a> is a parallelogram
-   via clip-path; a negative margin tucks each one under the previous tab's
-   slanted edge so the row reads as one connected strip rather than separate
-   pills. Colors are this page's own (light tab, dark text, accent on
-   hover/focus) rather than CodeFormer's white-on-grey, which depends on a
-   darker header backdrop this page doesn't have. */
+/* Section jump-links: one row of slanted tabs (shape borrowed from
+   CodeFormer's #tabs), pinned to the top of the viewport.
+   The row never wraps -- eight tabs wrapping onto two (desktop) or four
+   (phone) lines made the sticky bar eat up to a third of a phone screen.
+   Instead labels are short, padding is tight, and when the row still doesn't
+   fit it scrolls sideways, with edge fades (toggled by js/scroll-spy.js) to
+   show there is more. Paper sections come first; the media/resource tabs
+   (Video, Live Demo, Code) sit behind a divider with an icon and an outlined
+   look so the two groups read apart. */
 .tabs-nav {
-  margin-top: 1.75rem;
   /* The light-grey banding the tabs sit in, matching CodeFormer's header. */
   background: linear-gradient(to bottom, #ececec, #e2e2e2);
-  padding-top: 0.75rem;
-  padding-bottom: 0.75rem;
+  padding-block: 0.4rem;
   /* Pins the jump-links to the top of the viewport once the page scrolls
-     past them, so a reader deep in a section can always jump to another
-     one. Stays within .page-shell's own box (it never needs to escape it),
-     so that ancestor's overflow: hidden -- there for the rounded corners --
-     does not interfere. */
+     past them. Stays within .page-shell's own box, which deliberately has no
+     overflow: hidden (that would break sticky). */
   position: sticky;
   top: 0;
   z-index: 20;
@@ -125,50 +151,115 @@ a:hover {
 .tabs-nav ul {
   list-style: none;
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.6rem;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.4rem;
   margin: 0;
-  padding: 0;
+  /* Vertical room for each tab's drop shadow, which overflow-x: auto would
+     otherwise clip; horizontal room so the end tabs don't touch the edge. */
+  padding: 0.3rem 1rem;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tabs-nav ul::-webkit-scrollbar {
+  display: none;
+}
+
+/* Centers the row when it fits but keeps the first tab reachable when it
+   overflows (justify-content: center would push it off the left edge). */
+.tabs-nav li:first-child {
+  margin-left: auto;
+}
+
+.tabs-nav li:last-child {
+  margin-right: auto;
+}
+
+/* Edge fades, only on the side(s) that actually have hidden tabs. */
+.tabs-nav ul.fade-left {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 2.5rem);
+  mask-image: linear-gradient(to right, transparent, #000 2.5rem);
+}
+
+.tabs-nav ul.fade-right {
+  -webkit-mask-image: linear-gradient(to left, transparent, #000 2.5rem);
+  mask-image: linear-gradient(to left, transparent, #000 2.5rem);
+}
+
+.tabs-nav ul.fade-left.fade-right {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 2.5rem, #000 calc(100% - 2.5rem), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 2.5rem, #000 calc(100% - 2.5rem), transparent);
 }
 
 .tabs-nav li {
-  /* Each tab is its own standalone piece (not a connected ribbon), so its
-     shadow wraps the whole shape instead of just a shared edge. filter (not
-     box-shadow) so the shadow follows the clip-path outline rather than the
-     invisible rectangular box behind it. */
-  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.25));
+  flex: none;
+  /* filter (not box-shadow) so the shadow follows the clip-path outline
+     rather than the invisible rectangular box behind it. */
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
+}
+
+.tabs-nav__sep {
+  width: 1px;
+  height: 1.4rem;
+  margin-inline: 0.35rem;
+  background: #b5b9bd;
+  filter: none !important;
 }
 
 .tabs-nav a {
-  display: inline-block;
-  padding: 0.6rem 1.5rem 0.6rem 1.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 1.15rem 0.45rem 0.95rem;
   background: linear-gradient(to bottom, #c2c6ca 0%, #9aa0a6 100%);
   color: #fff;
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   text-decoration: none;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
-  clip-path: polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%);
+  clip-path: polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+}
+
+/* Resource tabs: light face, accent text and icon. */
+.tabs-nav a.tabs-nav__res {
+  background: linear-gradient(to bottom, #ffffff, #e9eef2);
+  color: var(--accent);
+  text-shadow: none;
+}
+
+.tabs-nav svg {
+  width: 0.95rem;
+  height: 0.95rem;
+  flex: none;
+  fill: currentColor;
 }
 
 .tabs-nav a:hover,
-.tabs-nav a:focus-visible {
+.tabs-nav a:focus-visible,
+.tabs-nav a.tabs-nav__res:hover,
+.tabs-nav a.tabs-nav__res:focus-visible {
   background: linear-gradient(to bottom, #1f7fb8, var(--accent));
   color: #fff;
   text-decoration: none;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
 }
 
-/* Current section, set by js/scroll-spy.js as the reader scrolls. Reuses the
-   hover treatment (same accent gradient) so "active" and "hovered" read as
-   the same state, plus a bit of extra weight so it still reads as current
-   when the pointer is elsewhere and :hover isn't in play. */
-.tabs-nav a.is-active {
+/* Current section, set by js/scroll-spy.js as the reader scrolls. Same
+   accent fill as hover, plus extra weight so it still reads as current when
+   the pointer is elsewhere. */
+.tabs-nav a.is-active,
+.tabs-nav a.tabs-nav__res.is-active {
   background: linear-gradient(to bottom, #1f7fb8, var(--accent));
   color: #fff;
   font-weight: 800;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
 }
 
 .venue {
@@ -246,10 +337,10 @@ h2 {
 
 .section {
   padding: 2rem 0;
-  /* Clears the sticky .tabs-nav (~3.8rem tall: its own 1.5rem padding +
-     each tab's 1.2rem padding + line-height) plus a little breathing room,
-     so a nav-link jump doesn't land the section's heading underneath it. */
-  scroll-margin-top: 4.5rem;
+  /* Clears the sticky .tabs-nav (~3.1rem tall: its own padding + the list's
+     shadow room + one row of tabs) plus a little breathing room, so a
+     nav-link jump doesn't land the section's heading underneath it. */
+  scroll-margin-top: 3.75rem;
 }
 
 .section + .section {
@@ -264,6 +355,37 @@ h2 {
 .section > p:not(.anonymous) {
   text-align: justify;
   hyphens: auto;
+}
+
+/* Abstract: a narrower, slightly smaller column than the rest of the page.
+   At the full 900 px width a line runs ~130 characters, roughly twice a
+   comfortable reading measure; ~680 px brings it to ~90. Only the heading
+   and text narrow, not the section, so the divider above it still spans the
+   page like every other section's. */
+#abstract > h2,
+#abstract > p {
+  max-width: 680px;
+  margin-inline: auto;
+}
+
+#abstract > p {
+  font-size: 0.88rem;
+  line-height: 1.65;
+}
+
+/* Keywords sit in the abstract's column, a notch quieter than the text above
+   and left-aligned: a justified list of short terms opens wide gaps. Selector
+   is #abstract-qualified to outrank the justify rule on `.section > p`. */
+#abstract > p.keywords {
+  margin-top: 0.9rem;
+  font-size: 0.82rem;
+  text-align: left;
+  color: var(--muted);
+}
+
+#abstract > p.keywords strong {
+  color: var(--text);
+  font-weight: 600;
 }
 
 .caption {
@@ -285,6 +407,28 @@ h2 {
   width: 100%;
   aspect-ratio: 16 / 9;
   border: 0;
+  /* Letterbox color while the video/embed is still loading. */
+  background: #000;
+}
+
+/* Live Demo: one self-hosted video with its caption, RETVI-style. Takes
+   the clip's own aspect ratio rather than a forced 16:9. */
+.demo-video {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #000;
+}
+
+/* Live Demo / Video: just under the text width (90%), so they sit inside
+   the column rather than flush with it, while the UI text in the screen
+   recording stays legible. Phones are narrower
+   than the column anyway and keep full width. */
+.media-box--narrow {
+  max-width: 90%;
+  margin-inline: auto;
 }
 
 figure {
@@ -411,8 +555,27 @@ figcaption {
 
 .qual-item img {
   width: 100%;
+  height: auto;
   aspect-ratio: 1 / 1;
   object-fit: cover;
+  cursor: zoom-in;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.qual-item img:hover,
+.qual-item img:focus-visible {
+  transform: scale(1.04);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.qual-item img:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.qual-head .qual-ours {
+  color: var(--accent);
+  font-weight: 800;
 }
 
 .link-list {
@@ -439,10 +602,284 @@ figcaption {
   font-family: Consolas, "Courier New", monospace;
 }
 
+.bibtex-wrap {
+  position: relative;
+}
+
+.copy-btn {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  padding: 0.3rem 0.75rem;
+  font: 600 0.78rem var(--font);
+  color: var(--accent);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.copy-btn:hover,
+.copy-btn:focus-visible {
+  border-color: var(--accent);
+}
+
+.copy-btn.is-copied {
+  color: #fff;
+  background: #2e7d32;
+  border-color: #2e7d32;
+}
+
+/* ── Back-to-top button (js/page-utils.js shows it past the first screen) ── */
+.back-to-top {
+  position: fixed;
+  right: clamp(1rem, 3vw, 2rem);
+  bottom: clamp(1rem, 3vw, 2rem);
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--accent);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  transform: translateY(0.5rem);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+}
+
+.back-to-top.is-visible {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.back-to-top:hover,
+.back-to-top:focus-visible {
+  background: #1f7fb8;
+  text-decoration: none;
+}
+
+.back-to-top svg {
+  width: 1.3rem;
+  height: 1.3rem;
+  fill: currentColor;
+}
+
+/* ── Lightbox (js/lightbox.js) ── */
+img[data-lightbox] {
+  cursor: zoom-in;
+}
+
+/* The page behind an open viewer must not scroll under the reader's wheel. */
+html.lightbox-open {
+  overflow: hidden;
+}
+
+.lightbox {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #fff;
+}
+
+.lightbox::backdrop {
+  background: rgba(10, 12, 16, 0.92);
+}
+
+.lightbox__body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  width: 100%;
+  height: 100%;
+  padding: 3.5rem 4rem 1.25rem;
+}
+
+.lightbox__stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  touch-action: pan-y pinch-zoom;
+}
+
+/* Fills the stage's height (capped by its width) so a 256 px comparison tile
+   is actually enlarged rather than shown at its native, thumbnail size;
+   object-fit keeps any aspect ratio undistorted inside that box. */
+.lightbox__img {
+  display: block;
+  width: auto;
+  height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+  /* The comparison sources are 256 px: blown up for inspection, a smooth
+     upscale reads as the display, hard pixels would read as an artefact. */
+  image-rendering: auto;
+}
+
+/* Only the diagram has more pixels than the screen, so only it toggles to
+   actual size; the 256 px comparison tiles are already shown enlarged. */
+.lightbox.can-zoom .lightbox__img {
+  cursor: zoom-in;
+}
+
+.lightbox.is-actual .lightbox__stage {
+  display: block;
+  overflow: auto;
+  touch-action: auto;
+}
+
+.lightbox.is-actual .lightbox__img {
+  width: auto;
+  height: auto;
+  max-width: none;
+  cursor: zoom-out;
+}
+
+.lightbox__caption {
+  margin: 0;
+  font-size: 0.95rem;
+  text-align: center;
+}
+
+.lightbox__caption small {
+  display: block;
+  margin-top: 0.2rem;
+  color: #b8bec6;
+  font-size: 0.78rem;
+}
+
+.lightbox__btn {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  font-size: 1.4rem;
+  line-height: 1;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.lightbox__btn:hover,
+.lightbox__btn:focus-visible {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.lightbox__btn[hidden] {
+  display: none;
+}
+
+.lightbox__close {
+  top: 0.75rem;
+  right: 0.75rem;
+}
+
+.lightbox__prev,
+.lightbox__next {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.lightbox__prev {
+  left: 0.75rem;
+}
+
+.lightbox__next {
+  right: 0.75rem;
+}
+
+/* Method strip: one thumbnail per method in the open scene, current one
+   framed -- shows where you are and lets you jump straight to a method. */
+.lightbox__strip {
+  display: flex;
+  gap: 0.35rem;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 2px;
+}
+
+.lightbox__strip[hidden] {
+  display: none;
+}
+
+.lightbox__thumb {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0;
+  font: 500 0.68rem var(--font);
+  color: #b8bec6;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.lightbox__thumb img {
+  width: 3.25rem;
+  height: 3.25rem;
+  object-fit: cover;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  opacity: 0.6;
+}
+
+.lightbox__thumb[aria-current="true"] {
+  color: #fff;
+}
+
+.lightbox__thumb[aria-current="true"] img {
+  border-color: var(--accent);
+  opacity: 1;
+}
+
+@media (max-width: 640px) {
+  .lightbox__body {
+    padding: 3.5rem 0.75rem 1rem;
+  }
+
+  /* Side arrows would sit on the image; on phones swiping does the job and
+     the strip below is the visible control. */
+  .lightbox__prev,
+  .lightbox__next {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qual-item img,
+  .back-to-top {
+    transition: none;
+  }
+}
+
+/* Holds only the back-to-top button (position: fixed, so it takes no room):
+   just enough bottom space for the page panel to end below the last section,
+   with no rule above it since the sections already carry their own. */
 .footer {
-  margin-top: 1rem;
-  padding: 1.5rem 0 2rem;
-  border-top: 1px solid var(--border);
+  margin-top: 0;
+  padding: 0 0 1rem;
   text-align: center;
   color: var(--muted);
   font-size: 0.9rem;
@@ -461,7 +898,7 @@ figcaption {
    this wrapper's width, so narrowing it here scales all of them down
    together without touching their calc() formulas. */
 .media-narrow {
-  max-width: 76%;
+  max-width: 100%;
   margin-inline: auto;
 }
 
@@ -814,6 +1251,33 @@ figcaption {
   cursor: zoom-in;
 }
 
+/* Result Demonstration: the two methods the section is about get a colour
+   each, on a filled caption pill under the tile, so they read apart
+   from Input and Ground truth at a glance. SOTA is the baseline (amber),
+   Ours is the accent. Hardcoded rather than tokens: they are a pair, and
+   the amber has no other use on the page. */
+.zoom-fig--sota {
+  --hl: #c26a00;
+  --hl-bg: #fdf0dc;
+}
+
+.zoom-fig--ours {
+  --hl: var(--accent);
+  --hl-bg: #dcecf7;
+}
+
+.zoom-fig--sota figcaption,
+.zoom-fig--ours figcaption {
+  display: block;
+  width: fit-content;
+  margin-inline: auto;
+  padding: 0.1rem 0.7rem;
+  font-weight: 700;
+  color: var(--hl);
+  background: var(--hl-bg);
+  border-radius: 999px;
+}
+
 /* The tile owns the frame, so the global `figure img` border and radius have
    to come off, otherwise every tile draws a second, inset border. */
 .zoom-tile img {
@@ -891,6 +1355,226 @@ figcaption {
   opacity: 1;
 }
 
+/* ── Banner (first thing under the title) ──
+   Four beats in a row -- rainy input, then the title's three verbs -- with
+   chevrons between them, so the reader gets the claim without reading a
+   sentence. Detect spends three frames against everyone else's one, which is
+   what the 1fr/3fr/1fr/1fr track list buys: its sub-frames then come out the
+   same size as the single frames beside them, and the row keeps one
+   horizon. */
+.banner {
+  padding-bottom: 1.75rem;
+}
+
+/* An ordered list because the row is a sequence, not a gallery -- the
+   chevrons below are the marker, so the list's own one is dropped. */
+.banner-flow {
+  display: grid;
+  grid-template-columns: 1fr 3fr 1fr 1fr;
+  gap: 2rem;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+
+.banner-step {
+  margin: 0;
+}
+
+.banner-step__frame {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  background: #111;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+/* Detect's frame is a rail for three, so it hands the border, fill and
+   square to the sub-frames and keeps only the position the chevron needs. */
+.banner-step__frame--group {
+  display: grid;
+  aspect-ratio: auto;
+  background: none;
+  border: 0;
+  border-radius: 0;
+}
+
+.banner-subs {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+/* The dashed ring that makes the three frames one stage. Drawn on a
+   pseudo-element outside the strip's own box rather than as padding and a
+   border on it, so it costs no layout: the sub-frames stay the size of the
+   single frames beside them, and every verb under the row keeps its
+   baseline. The 7px outset clears the frames without reaching the chevrons,
+   which sit 11px further out in the 2rem gap. Colour is --accent at 45%,
+   tying the ring to the DETECT label under it. */
+.banner-subs::after {
+  content: "";
+  position: absolute;
+  inset: -7px;
+  border: 2px dashed rgba(0, 98, 155, 0.7);
+  border-radius: 10px;
+  pointer-events: none;
+}
+
+.banner-sub {
+  display: block;
+  aspect-ratio: 1 / 1;
+  background: #111;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+/* Rounded on the image rather than clipped by the frame: the frame has to
+   stay unclipped so the chevron it carries can sit out in the gap. */
+.banner-step__frame img,
+.banner-sub img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 5px;
+}
+
+/* Chevron in the gap, centred on the frames rather than on the whole tile:
+   the captions below vary in height, so anchoring to the tile would leave it
+   sitting low. */
+.banner-step + .banner-step .banner-step__frame::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -1rem;
+  width: 14px;
+  height: 14px;
+  /* The rotated box draws a ">" whose visible mass sits ~5px right of the
+     box's own centre, so the box is pulled 5px left of the gap's midpoint
+     (-16px from the frame) to put the arrow, not its box, in the middle. */
+  margin: -8px 0 0 -12px;
+  border-top: 3px solid var(--muted);
+  border-right: 3px solid var(--muted);
+  border-top-right-radius: 2px;
+  transform: rotate(45deg);
+}
+
+/* The Detect ring reaches 9px into the gaps on both sides of it, so the free
+   space there is 23px, not 32px, and its midpoint moves away from the ring:
+   left of Detect it sits further left, right of Detect further right. */
+.banner-step + .banner-step--detect .banner-step__frame::before {
+  margin-left: -14px;
+}
+
+.banner-step--detect + .banner-step .banner-step__frame::before {
+  margin-left: -7px;
+}
+
+/* Last in the tile, so the four accented words sit on one baseline and the
+   row can be read off without touching the grey captions above them. */
+.banner-step__verb {
+  margin: 0.15rem 0 0;
+  text-align: center;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+/* The input is not one of the three verbs, so it is labelled but not
+   accented -- the colour is what makes Detect/Restore/Compose scannable. */
+.banner-step__verb--plain {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.banner-step__caption {
+  /* Pinned to a single line: anything longer and the verbs below it stop
+     sharing a baseline, which is the whole point of putting them last. Keep
+     every caption under about 18 characters. */
+  min-height: 1.45em;
+  margin: 0.55rem 0 0;
+  /* Centred with the verb under it: the pair reads as one label block
+     anchored to the middle of its frame, and it matches Detect, whose three
+     names are each centred in their own track. */
+  text-align: center;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+/* Detect's caption rides the same three tracks as its frames, so each name
+   lands under the frame it belongs to. */
+.banner-step__caption--split {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  text-align: center;
+}
+
+/* The claim, under the row it describes: the frames are what the reader
+   looks at first, so the sentence sits where a figure caption goes. Short
+   enough (about 70 characters) to stay on one line under the 880 px row, so
+   it is capped at the row's width rather than at a measure. Qualified with the element so
+   it outranks the page-wide `.section > p:not(.anonymous)` justify rule,
+   which would otherwise stretch its word gaps. */
+.banner > p.banner-caption {
+  max-width: 880px;
+  margin: 1.3rem auto 0;
+  text-align: center;
+  text-wrap: balance;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.banner-caption strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* Phones and narrow tablets: two columns. Reading order is still the flow
+   order, so the verbs keep carrying the sequence and the chevrons -- which
+   would now point across a wrap -- go. Detect keeps all three frames rather
+   than dropping two: they are small here, but a diagonal ridge and a streak
+   map read as patterns at any size, and losing them would leave the busiest
+   stage looking like the simplest. */
+@media (max-width: 700px) {
+  .banner-flow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.1rem 1.25rem;
+    max-width: 420px;
+  }
+
+  /* Square so the three sub-frames sit in the middle of a cell the same
+     height as its neighbours, instead of hugging the top of the row. */
+  .banner-step__frame--group {
+    aspect-ratio: 1 / 1;
+    align-content: center;
+  }
+
+  .banner-step + .banner-step .banner-step__frame::before {
+    display: none;
+  }
+
+  .banner-step__caption {
+    min-height: 0;
+  }
+
+  .banner-step__caption--split {
+    font-size: 0.64rem;
+  }
+
+  .banner > p.banner-caption {
+    max-width: 420px;
+    font-size: 0.85rem;
+  }
+}
+
 /* ── The standalone demonstration slider ──
    One always-on sweep above the grid: it shows what the control does, and the
    six manual scenes below refer back to it. Sized like a demo tile rather than
@@ -961,4 +1645,10 @@ figcaption {
 .compare[data-auto-hint]:hover::after,
 .compare[data-auto-hint]:focus-within::after {
   opacity: 0;
+}
+
+/* The architecture text links to its figure; clear the sticky nav on the jump
+   the same way .section headings do. */
+#fig-framework {
+  scroll-margin-top: 3.75rem;
 }
