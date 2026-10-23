@@ -3,8 +3,8 @@
  *   - "Copy" buttons (BibTeX): <button data-copy-target="id"> copies the
  *     text of #id and confirms in place for a moment.
  *   - Back-to-top button: appears once the reader is past the first screen.
- *   - Live Demo video: starts a second after it scrolls into view, rather
- *     than on page load, so it begins at the start for whoever reaches it.
+ *   - Live Demo video: starts as soon as it scrolls into view, rather than
+ *     on page load, so it begins at the start for whoever reaches it.
  *   - Spotlights: while the Video section (softly, Live Demo) sits in the
  *     middle of the viewport, the page behind the panel darkens and shows
  *     through the panel behind that section, rain included.
@@ -98,15 +98,14 @@
   }
 
   /* ── Live Demo video ──
-     Plays once it has sat at least half in view for DEMO_DELAY_MS, and pauses
-     again when it leaves, so it never runs unseen. A reader who pauses it
-     themselves keeps it paused: the observer only resumes playback it paused
-     itself. Reduced-motion readers get the poster and the controls only. */
+     Plays as soon as it is at least half in view, in step with the Live
+     Demo spotlight, and pauses again when it leaves, so it never runs
+     unseen. A reader who pauses it themselves keeps it paused: the observer
+     only resumes playback it paused itself. Reduced-motion readers get the
+     poster and the controls only. */
 
-  const DEMO_DELAY_MS = 1000;
   const demo = document.querySelector(".demo-video");
   if (demo && "IntersectionObserver" in window && !reduceMotion.matches) {
-    let timer = null;
     let userPaused = false;
     let autoPausing = false;
 
@@ -121,14 +120,11 @@
     new IntersectionObserver(
       (entries) => {
         const visible = entries[0].isIntersecting;
-        clearTimeout(timer);
         if (visible) {
           if (userPaused) return;
-          timer = setTimeout(() => {
-            // play() rejects if the browser refuses autoplay; the controls
-            // are still there, so there is nothing else to do about it.
-            demo.play().catch(() => {});
-          }, DEMO_DELAY_MS);
+          // play() rejects if the browser refuses autoplay; the controls
+          // are still there, so there is nothing else to do about it.
+          demo.play().catch(() => {});
         } else if (!demo.paused) {
           autoPausing = true;
           demo.pause();
